@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_starter/features/chat/chat_page.dart';
-import 'package:flutter_starter/l10n/app_localizations.dart';
-import 'package:flutter_starter/shared/theme/theme.dart';
+import 'package:gosling/features/chat/chat_page.dart';
+import 'package:gosling/l10n/app_localizations.dart';
+import 'package:gosling/shared/theme/theme.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
