@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_starter/features/chat/chat_page.dart';
+import 'package:gosling/features/chat/chat_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 

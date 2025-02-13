@@ -1,5 +1,5 @@
-import 'package:flutter_starter/features/app/app.dart';
-import 'package:flutter_starter/features/chat/chat_page.dart';
+import 'package:gosling/features/app/app.dart';
+import 'package:gosling/features/chat/chat_page.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/widget_helpers.dart';
