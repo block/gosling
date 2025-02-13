@@ -49,8 +49,15 @@ analyze:
   flutter analyze
 
 # Generate code (localization, etc.)
-generate:
+gen-l10n:
   flutter gen-l10n
+
+# Generate the Rust bindings
+generate-rust:
+  flutter_rust_bridge_codegen generate
+
+# Generate the Rust bindings
+generate: gen-l10n generate-rust
 
 # Coverage report
 coverage:
@@ -59,6 +66,4 @@ coverage:
   genhtml coverage/lcov.info -o coverage/html
   open coverage/html/index.html
 
-# Generate the Rust bindings
-generate-rust:
-  flutter_rust_bridge_codegen generate
+
