@@ -1,37 +1,55 @@
-# $PROJECT_NAME README
 
-Congrats, project leads! You got a new project to grow!
+<p align="center">
+  <img src="docs/gosling.webp" alt="Gosling Logo" width="300"/>
+</p>
 
-This stub is meant to help you form a strong community around your work. It's yours to adapt, and may 
-diverge from this initial structure. Just keep the files seeded in this repo, and the rest is yours to evolve! 
+## Getting Started
 
-## Introduction
+This project uses [Hermit](https://cashapp.github.io/hermit/) to manage development dependencies. Hermit ensures everyone uses the same versions of tools like Flutter, Rust, and other development dependencies.
 
-Orient users to the project here. This is a good place to start with an assumption
-that the user knows very little - so start with the Big Picture and show how this
-project fits into it.
+### Prerequisites
 
-Then maybe a dive into what this project does.
+1. Install Hermit by following the [installation guide](https://cashapp.github.io/hermit/usage/get-started/)
+2. Activate Hermit in your shell (or better yet, use shell [hooks](https://cashapp.github.io/hermit/usage/shell/) to automatically activate Hermit):
+   ```bash
+   source bin/activate-hermit
+   ```
+3. Flutter will require other tools like Xcode and Android Studio to be installed. See the [Flutter installation guide](https://docs.flutter.dev/get-started/install) for more information.
 
-Diagrams and other visuals are helpful here. Perhaps code snippets showing usage.
+### Development Setup
 
-Project leads should complete, alongside this `README`:
-* [CODEOWNERS](./CODEOWNERS) - set project lead(s)
-* [CONTRIBUTING.md](./CONTRIBUTING.md) - Fill out how to: install prereqs, build, test, run, access CI, chat, discuss, file issues
-* [Bug-report.md](.github/ISSUE_TEMPLATE/bug-report.md) - Fill out `Assignees` add codeowners @names
-* [config.yml](.github/ISSUE_TEMPLATE/config.yml) - remove "(/add your discord channel..)" and replace the url with your Discord channel if applicable
+After cloning the repository, (and activating Hermit as described above), you can run the following command to install the dependencies. This will configure the project for flutter_rust_bridge_codegen:
 
-The other files in this template repo may be used as-is:
-* [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
-* [GOVERNANCE.md](./GOVERNANCE.md)
-* [LICENSE](./LICENSE)
+```bash
+just setup
+```
 
-## Project Resources
+### Updating generated files
 
-| Resource                                   | Description                                                                    |
-| ------------------------------------------ | ------------------------------------------------------------------------------ |
-| [CODEOWNERS](./CODEOWNERS)                 | Outlines the project lead(s)                                                   |
-| [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) | Expected behavior for project contributors, promoting a welcoming environment |
-| [CONTRIBUTING.md](./CONTRIBUTING.md)       | Developer guide to build, test, run, access CI, chat, discuss, file issues     |
-| [GOVERNANCE.md](./GOVERNANCE.md)           | Project governance                                                             |
-| [LICENSE](./LICENSE)                       | Apache License, Version 2.0                                                    |
+> Note: This will run the generation for both the localization files and the Rust bindings.
+
+```bash
+just generate
+```
+
+### Running the app
+
+It's recommended to use VSCode with the Flutter extension to run the app.
+
+However, you can also run the app using the following command:
+
+```bash
+just run
+```
+
+### Running tests
+
+```bash
+just test
+```
+
+### Running coverage
+
+```bash
+just coverage
+```
