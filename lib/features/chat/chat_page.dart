@@ -102,6 +102,7 @@ class ChatPage extends HookWidget {
                       icon: const Icon(Icons.add),
                     ),
                     IconButton.filled(
+                      key: const Key('send_message_button'),
                       onPressed: () {
                         _onSendMessage(
                           messageController.text,
