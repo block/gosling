@@ -26,6 +26,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pub-
 
+      - name: Setup Environment Variables (In the future, we should use github secrets)
+        run: |
+          cp env.example.json env.json
+
       - name: Install Flutter Dependencies
         run: just get
 
