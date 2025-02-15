@@ -6,10 +6,11 @@ setup:
   #!/bin/bash
   rustup default stable
   cargo install flutter_rust_bridge_codegen
+  cp env.example.json env.json
 
 # Run the Flutter app
 run:
-  flutter run
+  @flutter run --dart-define-from-file=env.json
 
 # Get Flutter and Dart packages
 get:
@@ -37,11 +38,11 @@ clean:
 
 # Build the app for release
 build:
-  flutter build apk
+  flutter build apk --dart-define-from-file=env.json
 
 # Run tests
 test:
-  flutter test
+  flutter test --dart-define-from-file=env.json
 
 # Analyze the project's Dart code
 analyze:
@@ -62,7 +63,7 @@ generate: gen-l10n generate-rust
 # Coverage report
 coverage:
   #!/bin/bash
-  flutter test --coverage
+  flutter test --coverage --dart-define-from-file=env.json
   genhtml coverage/lcov.info -o coverage/html
   open coverage/html/index.html
 
