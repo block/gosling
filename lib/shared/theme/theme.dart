@@ -10,17 +10,7 @@ ThemeData lightTheme(BuildContext context) {
   );
 
   return base.copyWith(
-    inputDecorationTheme: base.inputDecorationTheme.copyWith(
-      hintStyle: TextStyle(
-        color: lightColorScheme.onSurface.withValues(alpha: 0.5),
-      ),
-      border: OutlineInputBorder(
-        borderSide: BorderSide.none,
-      ),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 6,
-      ),
-    ),
+    inputDecorationTheme: createInputDecorationTheme(lightColorScheme),
   );
 }
 
@@ -32,16 +22,15 @@ ThemeData darkTheme(BuildContext context) {
   );
 
   return base.copyWith(
-    inputDecorationTheme: base.inputDecorationTheme.copyWith(
-      hintStyle: TextStyle(
-        color: darkColorScheme.onSurface.withValues(alpha: 0.5),
-      ),
-      border: OutlineInputBorder(
-        borderSide: BorderSide.none,
-      ),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 6,
-      ),
-    ),
+    inputDecorationTheme: createInputDecorationTheme(darkColorScheme),
+  );
+}
+
+InputDecorationTheme createInputDecorationTheme(ColorScheme colorScheme) {
+  return InputDecorationTheme(
+    hintStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5)),
+    isDense: true,
+    border: OutlineInputBorder(borderSide: BorderSide.none),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 0),
   );
 }
