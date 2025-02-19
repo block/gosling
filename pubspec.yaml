@@ -38,3 +38,4 @@ flutter:
           style: italic
   assets:
     - assets/images/
+    - assets/images/loader/

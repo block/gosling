@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gosling/l10n/app_localizations.dart';
 import 'package:gosling/features/chat/message.dart';
 import 'package:gosling/features/chat/message_bubble.dart';
+import 'package:gosling/shared/theme/grid.dart';
 
 class ChatPage extends HookWidget {
   const ChatPage({super.key});
@@ -34,12 +35,11 @@ class ChatPage extends HookWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Top section that takes remaining space
           Expanded(
             child: showWelcomeImage.value
                 ? Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(Grid.md),
                       child: SvgPicture.asset(
                         'assets/images/ask_goose.svg',
                         colorFilter: ColorFilter.mode(
@@ -53,7 +53,7 @@ class ChatPage extends HookWidget {
                 : ListView.builder(
                     controller: scrollController,
                     reverse: true, // Make the list build from bottom up
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(Grid.sm),
                     itemCount: messages.value.length,
                     itemBuilder: (context, index) {
                       // Reverse the index to show messages in correct order
@@ -65,12 +65,14 @@ class ChatPage extends HookWidget {
           ),
           // Bottom panel
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.only(
+              top: Grid.sm,
+              bottom: Grid.lg + MediaQuery.of(context).viewInsets.bottom,
+            ),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.onPrimaryContainer,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
               boxShadow: [
                 BoxShadow(
                   color: Theme.of(context)
@@ -78,42 +80,85 @@ class ChatPage extends HookWidget {
                       .shadow
                       .withValues(alpha: 0.1),
                   blurRadius: 4,
-                  offset: const Offset(0, -2),
+                  offset: const Offset(0, -1),
                 ),
               ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Text input row
-                TextField(
-                  controller: messageController,
-                  decoration: InputDecoration(
-                    hintText: Loc.of(context).whatShouldGooseDo,
+                Padding(
+                  padding: const EdgeInsets.only(left: Grid.md, right: Grid.sm),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            maxHeight: 120,
+                          ),
+                          child: TextField(
+                            controller: messageController,
+                            minLines: 1,
+                            maxLines: 4,
+                            decoration: InputDecoration(
+                              hintText: Loc.of(context).whatShouldGooseDo,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: Grid.sm),
+                      IconButton(
+                        key: const Key('send_message_button'),
+                        onPressed: () {
+                          _onSendMessage(
+                            messageController.text,
+                            messages,
+                            showWelcomeImage,
+                            messageController,
+                          );
+                        },
+                        icon: Icon(
+                          Icons.send,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                // Buttons row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton.outlined(
-                      onPressed: () {},
-                      icon: const Icon(Icons.add),
-                    ),
-                    IconButton.filled(
-                      key: const Key('send_message_button'),
-                      onPressed: () {
-                        _onSendMessage(
-                          messageController.text,
-                          messages,
-                          showWelcomeImage,
-                          messageController,
-                        );
-                      },
-                      icon: const Icon(Icons.arrow_upward),
-                    ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: Grid.xs,
+                    right: Grid.sm,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Row(spacing: 1, children: [
+                      IconButton(
+                        onPressed: () {},
+                        style: IconButton.styleFrom(
+                          foregroundColor:
+                              Theme.of(context).colorScheme.secondary,
+                        ),
+                        icon: Icon(Icons.link),
+                      ),
+                      IconButton(
+                        onPressed: () {},
+                        style: IconButton.styleFrom(
+                          foregroundColor:
+                              Theme.of(context).colorScheme.secondary,
+                        ),
+                        icon: Icon(Icons.remove_red_eye_rounded),
+                      ),
+                      IconButton(
+                        onPressed: () {},
+                        style: IconButton.styleFrom(
+                          foregroundColor:
+                              Theme.of(context).colorScheme.secondary,
+                        ),
+                        icon: Icon(Icons.code),
+                      ),
+                    ]),
+                  ),
                 ),
               ],
             ),
@@ -128,21 +173,23 @@ class ChatPage extends HookWidget {
     ValueNotifier<List<Message>> messages,
     ValueNotifier<bool> showWelcomeImage,
     TextEditingController messageController,
-  ) {
+  ) async {
     if (message.trim().isEmpty) return;
 
     showWelcomeImage.value = false;
     messages.value = [
       ...messages.value,
       Message(text: message, isUser: true),
-    ];
-
-    final response = greet(name: message);
-    messages.value = [
-      ...messages.value,
-      Message(text: response, isUser: false),
+      Message(text: '', isUser: false, isLoading: true),
     ];
 
     messageController.clear();
+
+    final response = await greetWithDelay(name: message);
+
+    messages.value = [
+      ...messages.value.sublist(0, messages.value.length - 1),
+      Message(text: response, isUser: false),
+    ];
   }
 }
