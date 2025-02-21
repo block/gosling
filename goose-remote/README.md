@@ -1,0 +1,1 @@
+you can use cloudflared tunnel --url http://localhost:8000 to provide access to this, but do do this properly, should check a public key which the app will provide with each request. The public key could be obtained for from icloud/notes/some known place to provde it is the account owner.
