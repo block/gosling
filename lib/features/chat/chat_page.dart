@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:gosling/generated/rust/api/simple.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gosling/l10n/app_localizations.dart';
 import 'package:gosling/features/chat/message.dart';
 import 'package:gosling/features/chat/message_bubble.dart';
 import 'package:gosling/shared/theme/grid.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class ChatPage extends HookWidget {
   const ChatPage({super.key});
@@ -168,6 +169,24 @@ class ChatPage extends HookWidget {
     );
   }
 
+  String _cleanOutput(String text) {
+    // Remove ANSI escape codes
+    text = text.replaceAll(RegExp(r'\u001b\[[0-9;]*m'), '');
+    
+    // Remove the session information header (first two lines)
+    final lines = text.split('\n');
+    if (lines.length > 2 && lines[0].contains('starting session')) {
+      lines.removeRange(0, 2);
+      text = lines.join('\n');
+    }
+    
+    // Trim extra whitespace while preserving intentional line breaks
+    text = text.split('\n').map((line) => line.trim()).join('\n');
+    text = text.replaceAll(RegExp(r'\n{3,}'), '\n\n'); // Replace multiple blank lines with double line break
+    
+    return text.trim();
+  }
+
   void _onSendMessage(
     String message,
     ValueNotifier<List<Message>> messages,
@@ -185,11 +204,37 @@ class ChatPage extends HookWidget {
 
     messageController.clear();
 
-    final response = await greetWithDelay(name: message);
+    try {
+      final response = await http.post(
+        Uri.parse('https://captured-jp-samoa-hardly.trycloudflare.com/run'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'command': message}),
+      );
 
-    messages.value = [
-      ...messages.value.sublist(0, messages.value.length - 1),
-      Message(text: response, isUser: false),
-    ];
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        final output = _cleanOutput(jsonResponse['output'] as String);
+        final error = jsonResponse['error'] as String?;
+
+        final responseText = error != null && error.isNotEmpty 
+            ? 'Error: $error\n$output' 
+            : output;
+
+        messages.value = [
+          ...messages.value.sublist(0, messages.value.length - 1),
+          Message(text: responseText, isUser: false),
+        ];
+      } else {
+        messages.value = [
+          ...messages.value.sublist(0, messages.value.length - 1),
+          Message(text: 'Error: HTTP ${response.statusCode}', isUser: false),
+        ];
+      }
+    } catch (e) {
+      messages.value = [
+        ...messages.value.sublist(0, messages.value.length - 1),
+        Message(text: 'Error: $e', isUser: false),
+      ];
+    }
   }
 }
