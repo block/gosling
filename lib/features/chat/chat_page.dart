@@ -6,6 +6,7 @@ import 'package:gosling/l10n/app_localizations.dart';
 import 'package:gosling/features/chat/message.dart';
 import 'package:gosling/features/chat/message_bubble.dart';
 import 'package:gosling/shared/theme/grid.dart';
+import 'package:gosling/shared/widgets/platform.dart';
 
 class ChatPage extends HookWidget {
   const ChatPage({super.key});
@@ -67,7 +68,8 @@ class ChatPage extends HookWidget {
           Container(
             padding: EdgeInsets.only(
               top: Grid.sm,
-              bottom: Grid.lg + MediaQuery.of(context).viewInsets.bottom,
+              bottom: (isDesktop ? 0 : Grid.lg) +
+                  MediaQuery.of(context).viewInsets.bottom,
             ),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.onPrimaryContainer,

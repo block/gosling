@@ -19,6 +19,11 @@ dependencies:
   rust_lib_gosling:
     path: rust_builder
   flutter_rust_bridge: 2.8.0
+  shelf: ^1.4.1
+  shelf_router: ^1.1.4
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^6.0.6
+  http: ^1.3.0
 
 dev_dependencies:
   flutter_test:
