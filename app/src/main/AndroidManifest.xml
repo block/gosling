@@ -53,6 +53,32 @@
             </intent-filter>
         </activity>
 
+        <!-- mMCP Tool Advertisement -->
+        <activity
+            android:name=".ExampleMMCPTools"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.mMCP.ACTION_TOOL_ADVERTISE" />
+                <action android:name="com.example.mMCP.ACTION_TOOL_CALL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data
+                android:name="mMCP_manifest"
+                android:value='{
+                    "instructions": "Gosling AI Assistant",
+                    "tools": [
+                        {
+                            "name": "hello_world",
+                            "description": "Returns a hello message",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {}
+                            }
+                        }
+                    ]
+                }' />
+        </activity>
+
         <service
             android:name=".AssistantService"
             android:exported="true"

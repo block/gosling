@@ -118,6 +118,64 @@ class MainActivity : ComponentActivity() {
         isAccessibilityEnabled = isEnabled
         Log.d("Gosling", "MainActivity: Updated accessibility state on resume: $isEnabled")
 
+
+        // Start services if overlay permission was just granted
+        if (Settings.canDrawOverlays(this)) {
+            startForegroundService(Intent(this, Agent::class.java))
+            startService(Intent(this, OverlayService::class.java))
+        }
+    }
+
+
+    /**
+     * Step 2: Handle the asynchronous response from mMCP tool call
+     * 
+     * This method is called by Android when the mMCP activity completes.
+     * The flow is:
+     * 1. Our startActivityForResult() initiates the call
+     * 2. Target activity processes the mMCP request
+     * 3. Target calls setResult() with response data
+     * 4. Android system calls this method with the results
+     *
+     * Flow diagram:
+     * Our App                          Target mMCP Activity
+     *    |                                    |
+     *    |---startActivityForResult(1001)---->|  Step 1: Initial call
+     *    |                                    |
+     *    |          [waiting...]             |  
+     *    |                                    |
+     *    |                              [processes tool_name]
+     *    |                              [with parameters]
+     *    |                                    |
+     *    |                            [prepares response]
+     *    |                                    |
+     *    |<--setResult(OK/CANCEL + data)-----|  Step 2: Sets response
+     *    |                                    |
+     *    |--onActivityResult() called--------|  Step 3: We get callback
+     *    |                                    |
+     */
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 1001) {
+            println("Step 2: Received mMCP callback response")
+            when (resultCode) {
+                RESULT_OK -> {
+                    val result = data?.getStringExtra("result")
+                    println("mMCP success response: $result")
+                    Log.d("Gosling", "mMCP success response: $result")
+                }
+                RESULT_CANCELED -> {
+                    val error = data?.getStringExtra("error")
+                    println("mMCP error response: $error")
+                    Log.d("Gosling", "mMCP error response: $error")
+                }
+                else -> {
+                    println("mMCP unknown response code: $resultCode")
+                    Log.d("Gosling", "mMCP unknown response code: $resultCode")
+                }
+            }
+        }
+
         // Start services if overlay permission was just granted
         if (Settings.canDrawOverlays(this)) {
             startForegroundService(Intent(this, Agent::class.java))
@@ -155,6 +213,70 @@ fun MainContent(
             isAccessibilityEnabled = isAccessibilityEnabled
         )
     } else if (showSettings) {
+        // Step 0: Discover available mMCP tools
+        val context = LocalContext.current
+        val packageManager = context.packageManager
+        val queryIntent = Intent("com.example.mMCP.ACTION_TOOL_ADVERTISE")
+        val availableTools = packageManager.queryIntentActivities(queryIntent, 0)
+        
+        println("\nStep 0: Discovering available mMCP tools...")
+        availableTools.forEach { resolveInfo ->
+            val activityInfo = resolveInfo.activityInfo
+            println("\nFound mMCP provider:")
+            println("- Package: ${activityInfo.packageName}")
+            println("- Activity: ${activityInfo.name}")
+            
+            try {
+                // Get the activity's metadata bundle
+                val ai = packageManager.getActivityInfo(
+                    android.content.ComponentName(activityInfo.packageName, activityInfo.name),
+                    android.content.pm.PackageManager.GET_META_DATA
+                )
+                
+                println("- Metadata bundle: ${ai.metaData}")
+                
+                val manifest = ai.metaData?.getString("mMCP_manifest")
+                if (manifest != null) {
+                    try {
+                        // Parse the manifest JSON to show available tools
+                        val jsonObject = org.json.JSONObject(manifest)
+                        val instructions = jsonObject.getString("instructions")
+                        val tools = jsonObject.getJSONArray("tools")
+                        
+                        println("- Instructions: $instructions")
+                        println("- Available Tools:")
+                        
+                        for (i in 0 until tools.length()) {
+                            val tool = tools.getJSONObject(i)
+                            println("  * Tool: ${tool.getString("name")}")
+                            println("    Description: ${tool.getString("description")}")
+                            println("    Parameters: ${tool.getJSONObject("parameters")}")
+                        }
+                    } catch (e: Exception) {
+                        println("- Error parsing manifest JSON: ${e.message}")
+                        e.printStackTrace()
+                    }
+                } else {
+                    println("- No mMCP_manifest found in metadata")
+                    println("- Available metadata keys: ${ai.metaData?.keySet()?.joinToString(", ")}")
+                }
+            } catch (e: Exception) {
+                println("- Error reading activity metadata: ${e.message}")
+                e.printStackTrace()
+            }
+            println("----------------------------------------")
+        }
+        
+        // Step 1: Trigger mMCP action when settings page is shown
+        val intent = Intent("com.example.mMCP.ACTION_TOOL_CALL").apply {
+            setPackage(context.packageName)
+            putExtra("tool_name", "hello_world")
+            putExtra("parameters", "{}")
+        }
+        val activity = context as ComponentActivity
+        activity.startActivityForResult(intent, 1001)
+        println("\nStep 1: Initiated mMCP action - waiting for callback...")
+        
         SettingsScreen(
             settingsManager = settingsManager,
             onBack = { showSettings = false },
@@ -208,6 +330,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val goslingColors = LocalGoslingColors.current
     val settingsManager = remember { SettingsManager(context) }
+    val activity = context as ComponentActivity
 
     var isAccessibilityEnabled by remember { mutableStateOf(settingsManager.isAccessibilityEnabled) }
 
@@ -263,6 +386,7 @@ fun MainScreen(modifier: Modifier = Modifier) {
 
         // Gosling UI
         if (isAccessibilityEnabled) {
+    
             GoslingUI(context = context)
         }
     }
