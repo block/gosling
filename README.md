@@ -2,6 +2,10 @@
 
 An open agent for android. WIP.
 
+
+https://github.com/user-attachments/assets/87b73419-c27a-4368-9b60-c544e4d1b575
+
+
 ## Introduction
 
 Orient users to the project here. This is a good place to start with an assumption
