@@ -9,8 +9,6 @@ import android.graphics.Rect
 import android.net.Uri
 import android.os.Bundle
 import android.view.accessibility.AccessibilityNodeInfo
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import xyz.block.gosling.GoslingApplication
 import xyz.block.gosling.OverlayService
@@ -81,83 +79,91 @@ object ToolHandler {
         return gestureResult
     }
 
-    private fun serializeNodeHierarchy(node: AccessibilityNodeInfo): NodeInfo {
-        try {
-            val bounds = Rect().also { node.getBoundsInScreen(it) }
-
-            return NodeInfo(
-                className = node.className?.toString(),
-                packageName = node.packageName?.toString(),
-                text = node.text?.toString()?.takeIf { it.isNotEmpty() },
-                contentDesc = node.contentDescription?.toString()?.takeIf { it.isNotEmpty() },
-                resourceId = node.viewIdResourceName?.takeIf { it.isNotEmpty() },
-                bounds = NodeBounds(
-                    left = bounds.left,
-                    top = bounds.top,
-                    right = bounds.right,
-                    bottom = bounds.bottom
-                ),
-                clickable = if (node.isClickable) true else null,
-                focusable = if (node.isFocusable) true else null,
-                scrollable = if (node.isScrollable) true else null,
-                editable = if (node.isEditable) true else null,
-                enabled = if (!node.isEnabled) false else null,
-                children = if (node.childCount > 0) {
-                    (0 until node.childCount).mapNotNull { i ->
-                        node.getChild(i)?.let { childNode ->
-                            try {
-                                serializeNodeHierarchy(childNode)
-                            } catch (e: Exception) {
-                                NodeInfo(
-                                    error = "Failed to serialize child node: ${e.message}",
-                                    bounds = NodeBounds(0, 0, 0, 0)
-                                )
-                            }
-                        }
-                    }
-                } else null
-            )
-        } catch (e: Exception) {
-            return NodeInfo(
-                error = "Failed to serialize node: ${e.message}",
-                bounds = NodeBounds(0, 0, 0, 0)
-            )
-        }
-    }
-
     @Tool(
         name = "getUiHierarchy",
-        description = "Get the current UI hierarchy as a JSON string. " +
-                "This shows all UI elements, their properties, and locations on screen. " +
-                "clickable, focusable, scrollable, and editable properties are only mentioned " +
-                "when true, enabled only when false.",
+        description = "Get the current UI hierarchy in a compact format. " +
+                "Shows UI elements with their properties and locations on screen in a hierarchical structure. " +
+                "Only includes relevant properties (clickable, focusable, etc. when true; enabled when false).",
         parameters = [],
         requiresAccessibility = true
     )
     fun getUiHierarchy(accessibilityService: AccessibilityService, args: JSONObject): String {
-        val json = Json {
-            prettyPrint = false
-            ignoreUnknownKeys = true
-            encodeDefaults = false
-        }
-
         return try {
-            val activeWindow =
-                accessibilityService.rootInActiveWindow ?: return json.encodeToString(
-                    UiHierarchy(error = "No active window found")
-                )
+            val activeWindow = accessibilityService.rootInActiveWindow 
+                ?: return "ERROR: No active window found"
 
-            val nodeInfo = serializeNodeHierarchy(activeWindow)
-
-            json.encodeToString(
-                UiHierarchy(
-                    packageName = activeWindow.packageName?.toString(),
-                    className = activeWindow.className?.toString(),
-                    nodes = nodeInfo
-                )
-            )
+            val appInfo = "App: ${activeWindow.packageName}"
+            val hierarchy = buildCompactHierarchy(activeWindow)
+            System.out.println("HERE IT IS\n" + hierarchy);
+            "$appInfo (coordinates are [left, top, right, bottom])\n$hierarchy"
         } catch (e: Exception) {
-            json.encodeToString(UiHierarchy(error = "Failed to get UI hierarchy: ${e.message}"))
+            "ERROR: Failed to get UI hierarchy: ${e.message}"
+        }
+    }
+    
+    private fun buildCompactHierarchy(node: AccessibilityNodeInfo, depth: Int = 0): String {
+        try {
+            val bounds = Rect().also { node.getBoundsInScreen(it) }
+            val attributes = mutableListOf<String>()
+            
+            // Add key attributes in a compact format
+            node.text?.toString()?.takeIf { it.isNotEmpty() }?.let { 
+                attributes.add("text=\"$it\"") 
+            }
+            
+            node.contentDescription?.toString()?.takeIf { it.isNotEmpty() }?.let { 
+                attributes.add("desc=\"$it\"") 
+            }
+            
+            node.viewIdResourceName?.takeIf { it.isNotEmpty() }?.let { 
+                attributes.add("id=\"$it\"") 
+            }
+            
+            // Add interactive properties only when true
+            if (node.isClickable) attributes.add("clickable")
+            if (node.isFocusable) attributes.add("focusable")
+            if (node.isScrollable) attributes.add("scrollable")
+            if (node.isEditable) attributes.add("editable")
+            if (!node.isEnabled) attributes.add("disabled")
+            
+            // Check if this is a "meaningless" container that should be skipped
+            val hasNoAttributes = attributes.isEmpty()
+            val hasSingleChild = node.childCount == 1
+            
+            // Skip this node if it has no attributes and only one child
+            if (hasNoAttributes && hasSingleChild && node.getChild(0) != null) {
+                // Skip this level and directly return the child's hierarchy with the same depth
+                return buildCompactHierarchy(node.getChild(0), depth)
+            }
+            
+            // Format bounds compactly
+            val boundsStr = "[${bounds.left},${bounds.top},${bounds.right},${bounds.bottom}]"
+            
+            // Build the node line
+            val indent = "  ".repeat(depth)
+            val nodeType = node.className?.toString()?.substringAfterLast('.') ?: "View"
+            val attrStr = if (attributes.isNotEmpty()) " " + attributes.joinToString(" ") else ""
+            val nodeLine = "$indent$nodeType$attrStr $boundsStr"
+            
+            // Process children if any
+            val childrenStr = if (node.childCount > 0) {
+                val childrenLines = mutableListOf<String>()
+                for (i in 0 until node.childCount) {
+                    node.getChild(i)?.let { childNode ->
+                        try {
+                            childrenLines.add(buildCompactHierarchy(childNode, depth + 1))
+                        } catch (e: Exception) {
+                            childrenLines.add("${indent}  ERROR: Failed to serialize child: ${e.message}")
+                        }
+                    }
+                }
+                "\n" + childrenLines.joinToString("\n")
+            } else ""
+            
+            return nodeLine + childrenStr
+            
+        } catch (e: Exception) {
+            return "ERROR: Failed to serialize node: ${e.message}"
         }
     }
 
