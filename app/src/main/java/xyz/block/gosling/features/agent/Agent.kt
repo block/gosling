@@ -657,7 +657,6 @@ class Agent : Service() {
             annotation.annotations["duration"] ?: 0.0
         }
 
-        // Create a map of statistics and let kotlinx.serialization handle the conversion
         val statsMap = mapOf(
             "total_input_tokens" to totalInputTokens,
             "total_output_tokens" to totalOutputTokens,
