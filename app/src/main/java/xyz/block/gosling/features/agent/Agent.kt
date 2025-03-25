@@ -3,6 +3,7 @@ package xyz.block.gosling.features.agent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.media.projection.MediaProjection
 import android.net.Uri
 import android.os.Binder
 import android.os.IBinder
@@ -52,6 +53,9 @@ class Agent : Service() {
     private var isCancelled = false
     private var statusListener: ((AgentStatus) -> Unit)? = null
     lateinit var conversationManager: ConversationManager
+    var mediaProjection: MediaProjection? = null
+    var isScreenshotInProgress = false
+
 
     enum class TriggerType {
         MAIN,
@@ -102,6 +106,8 @@ class Agent : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        mediaProjection?.stop()
+        mediaProjection = null
         job.cancel()
         instance = null
     }
@@ -167,12 +173,23 @@ class Agent : Service() {
                 |approach doesn't work, try alternative methods until you succeed. Be persistent
                 |and creative in finding solutions.
                 |
-                |When you call a tool, tell the user about it. Call getUiHierarchy to see what's on 
-                |the screen. In some cases you can call actionView to get something done in one shot -
+                |IMPORTANT: You MUST make tool calls to interact with the phone. Do not just describe what you would do.
+                |For EVERY action you take, you MUST follow these steps in order:
+                |1. Call getUiHierarchy to see what's on the screen
+                |2. Call takeScreenshot to capture the current UI state
+                |3. Only then proceed with other actions
+                |This ensures I can review both the UI hierarchy and visual state of the screen.
+                |For example, if you need to click a button, you must:
+                |1. Call getUiHierarchy to find the button
+                |2. Call takeScreenshot to show me the current state
+                |3. Call click with the button's coordinates
+                |4. Call getUiHierarchy again to verify the click worked
+                |5. Call takeScreenshot again to show me the result
+                |In some cases you can call actionView to get something done in one shot -
                 |do so only if you are sure about the url to use.
                 |
                 |The phone has a screen resolution of ${width}x${height} pixels 
-                |When clicking or entering text on items with y co-ordinate of < ${height/3} swipe up first.               
+                |When clicking or entering text on items with y co-ordinate of < ${height / 3} swipe up first.               
                 |The phone has the following apps installed:
                 |
                 |$installedApps
@@ -199,6 +216,7 @@ class Agent : Service() {
                 | for example, adding to a shopping cart will require multiple steps, as will planning a trip.
                 |
                 |Remember: DO NOT ask the user for help or additional information - you must solve the problem autonomously.
+                |When you start a task, log all the tools you have available to you so I can see the list.
                 """.trimMargin()
 
             val startTime = System.currentTimeMillis()
@@ -545,6 +563,9 @@ class Agent : Service() {
                 message.role == "user" && message.content?.any { it is Content.ImageUrl } == true ->
                     message.copy(content = message.content.filterNot { it is Content.ImageUrl })
 
+                message.role == "tool" && message.name == "takeScreenshot" ->
+                    message.copy(content = contentWithText("{Screenshot preserved}"))
+
                 else -> message
             }
         }
@@ -750,6 +771,10 @@ class Agent : Service() {
                 }
             }
         }
+    }
+
+    fun isActive(): Boolean {
+        return conversationManager.currentConversation.value?.endTime == null
     }
 
 }

@@ -7,15 +7,24 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Path
+import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.hardware.display.DisplayManager
+import android.media.ImageReader
 import android.os.Bundle
 import android.os.Looper
+import android.util.Base64
+import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.core.net.toUri
 import org.json.JSONObject
 import xyz.block.gosling.features.overlay.OverlayService
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -404,6 +413,133 @@ object ToolHandler {
     }
 
     @Tool(
+        name = "takeScreenshot",
+        description = "Take a screenshot of the current screen and return it as a base64 encoded image. " +
+                "This can be used to get a visual representation of the current UI state.",
+        parameters = [],
+        requiresAccessibility = true,
+        requiresContext = true
+    )
+    fun takeScreenshot(
+        accessibilityService: AccessibilityService,
+        context: Context,
+        args: JSONObject
+    ): String {
+        Log.d("GOSLING_SCREENSHOT", "Starting takeScreenshot tool")
+        val agent = Agent.getInstance()
+        if (agent == null) {
+            Log.e("GOSLING_SCREENSHOT", "Agent instance is null")
+            return "Agent instance is null."
+        }
+        
+        agent.isScreenshotInProgress = true
+        try {
+            var mediaProjection = agent.mediaProjection
+            if (mediaProjection == null) {
+                Log.e("GOSLING_SCREENSHOT", "MediaProjection not initialized")
+                return "MediaProjection not initialized."
+            }
+            Log.d("GOSLING_SCREENSHOT", "MediaProjection initialized successfully")
+
+            var imageReader: ImageReader? = null
+            var virtualDisplay: android.hardware.display.VirtualDisplay? = null
+            
+            try {
+                Log.d("GOSLING_SCREENSHOT", "Taking a screenshot")
+                val metrics = context.resources.displayMetrics
+                val width = metrics.widthPixels
+                val height = metrics.heightPixels
+                val density = metrics.densityDpi
+                Log.d("GOSLING_SCREENSHOT", "Screen dimensions: ${width}x${height} @ ${density}dpi")
+
+                imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+                
+                try {
+                    virtualDisplay = mediaProjection.createVirtualDisplay(
+                        "screenshot",
+                        width, height, density,
+                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                        imageReader.surface, null, null
+                    )
+                    Log.d("GOSLING_SCREENSHOT", "Virtual display created")
+                } catch (e: SecurityException) {
+                    Log.w("GOSLING_SCREENSHOT", "MediaProjection token expired, requesting new permission")
+                    imageReader.close()
+                    return "MediaProjection token expired. Please grant screen capture permission again."
+                }
+
+                if (virtualDisplay == null) {
+                    Log.e("GOSLING_SCREENSHOT", "Failed to create virtual display")
+                    imageReader.close()
+                    return "Failed to create virtual display"
+                }
+
+                // Wait briefly for the screenshot to render
+                Thread.sleep(300)
+
+                val image = imageReader.acquireLatestImage()
+                    ?: run {
+                        Log.e("GOSLING_SCREENSHOT", "Failed to acquire image")
+                        return "Failed to capture screenshot."
+                    }
+                Log.d("GOSLING_SCREENSHOT", "Image acquired successfully")
+
+                val plane = image.planes[0]
+                val buffer = plane.buffer
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                bitmap.copyPixelsFromBuffer(buffer)
+                Log.d("GOSLING_SCREENSHOT", "Bitmap created and populated")
+
+                image.close()
+
+                // Save the original size image to session_dumps
+                val timestamp = System.currentTimeMillis()
+                val sessionDumpsDir = File(context.getExternalFilesDir(null), "session_dumps")
+                if (!sessionDumpsDir.exists()) {
+                    sessionDumpsDir.mkdirs()
+                }
+
+                val imageFile = File(sessionDumpsDir, "screenshot_${timestamp}.png")
+                FileOutputStream(imageFile).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                }
+                Log.d("GOSLING_SCREENSHOT", "Full size screenshot saved to ${imageFile.absolutePath}")
+
+                // Resize bitmap for base64 encoding while maintaining aspect ratio
+                val maxWidth = 800
+                val maxHeight = 1600
+                val ratio = Math.min(
+                    maxWidth.toFloat() / bitmap.width,
+                    maxHeight.toFloat() / bitmap.height
+                )
+
+                val newWidth = (bitmap.width * ratio).toInt()
+                val newHeight = (bitmap.height * ratio).toInt()
+
+                val resizedBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+                Log.d("GOSLING_SCREENSHOT", "Resized bitmap to ${newWidth}x${newHeight}")
+
+                val outputStream = ByteArrayOutputStream()
+                resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
+                val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
+
+                // Clean up bitmaps
+                resizedBitmap.recycle()
+                bitmap.recycle()
+
+                Log.d("GOSLING_SCREENSHOT", "Screenshot captured, resized, and encoded successfully")
+                return base64Image
+            } finally {
+                // Clean up resources but DO NOT stop the MediaProjection
+                virtualDisplay?.release()
+                imageReader?.close()
+            }
+        } finally {
+            agent.isScreenshotInProgress = false
+        }
+    }
+
+    @Tool(
         name = "home",
         description = "Press the home button on the device"
     )
@@ -549,7 +685,8 @@ object ToolHandler {
         requiresAccessibility = true
     )
     fun enterText(accessibilityService: AccessibilityService, args: JSONObject): String {
-        val currentPackageName = accessibilityService.rootInActiveWindow?.packageName?.toString() ?: "Unknown package"
+        val currentPackageName =
+            accessibilityService.rootInActiveWindow?.packageName?.toString() ?: "Unknown package"
 
 
         val text = args.getString("text")

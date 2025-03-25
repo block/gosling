@@ -5,8 +5,12 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -39,6 +43,8 @@ class MainActivity : ComponentActivity() {
     var currentAgent by mutableStateOf<Agent?>(null)
         private set
 
+    // Add this property to track if we're waiting for a new MediaProjection
+    private var isWaitingForMediaProjection = false
 
     @SuppressLint("UseKtx")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,6 +72,10 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 Log.d("MainActivity", "Agent service started successfully")
+
+                if (agent.mediaProjection == null) {
+                    requestMediaProjectionPermission()
+                }
             }
 
             startService(Intent(this, OverlayService::class.java))
@@ -123,7 +133,10 @@ class MainActivity : ComponentActivity() {
                 agentServiceManager.bindAndStartAgent { agent ->
                     currentAgent = agent
                     Log.d("MainActivity", "Agent service started successfully")
+                    checkAndRequestMediaProjection()
                 }
+            } else {
+                checkAndRequestMediaProjection()
             }
         }
     }
@@ -149,8 +162,11 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+            // Stop MediaProjection when the activity is destroyed
+            agent.mediaProjection?.stop()
+            agent.mediaProjection = null
         }
-        
+
         currentAgent = null
         agentServiceManager.unbindAgent()
     }
@@ -158,6 +174,73 @@ class MainActivity : ComponentActivity() {
     private fun openAccessibilitySettings() {
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
         accessibilitySettingsLauncher.launch(intent)
+    }
+
+    private val screenshotLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            Log.d("MainActivity", "MediaProjection permission granted")
+            try {
+                val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                val mediaProjection = projectionManager.getMediaProjection(result.resultCode, result.data!!)
+                
+                mediaProjection.registerCallback(object : MediaProjection.Callback() {
+                    override fun onStop() {
+                        Log.d("MainActivity", "MediaProjection stopped")
+                        Handler(Looper.getMainLooper()).post {
+                            // Only request new permission if we're not taking a screenshot and the app is active
+                            Agent.getInstance()?.let { agent ->
+                                if (!agent.isScreenshotInProgress && !isFinishing && !isDestroyed) {
+                                    agent.mediaProjection = null
+                                    if (!isWaitingForMediaProjection) {
+                                        requestMediaProjectionPermission()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }, Handler(Looper.getMainLooper()))
+
+                Agent.getInstance()?.mediaProjection = mediaProjection
+                Log.d("MainActivity", "MediaProjection set on Agent instance")
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error setting up MediaProjection", e)
+            }
+        } else {
+            Log.e("MainActivity", "MediaProjection permission denied or cancelled")
+        }
+        isWaitingForMediaProjection = false
+    }
+
+    private fun requestMediaProjectionPermission() {
+        Log.d("MainActivity", "Requesting MediaProjection permission")
+        if (isWaitingForMediaProjection) {
+            Log.d("MainActivity", "Already waiting for MediaProjection permission")
+            return
+        }
+        
+        // Only request if we don't have an active MediaProjection
+        if (Agent.getInstance()?.mediaProjection != null) {
+            Log.d("MainActivity", "MediaProjection already exists, skipping request")
+            return
+        }
+        
+        isWaitingForMediaProjection = true
+        try {
+            val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            screenshotLauncher.launch(projectionManager.createScreenCaptureIntent())
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error requesting MediaProjection permission", e)
+            isWaitingForMediaProjection = false
+        }
+    }
+
+    // Add this method to check if we need to request permission
+    private fun checkAndRequestMediaProjection() {
+        if (Agent.getInstance()?.mediaProjection == null && !isWaitingForMediaProjection && !isFinishing && !isDestroyed) {
+            requestMediaProjectionPermission()
+        }
     }
 }
 

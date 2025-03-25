@@ -8,8 +8,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import xyz.block.gosling.R
 import xyz.block.gosling.features.app.MainActivity
@@ -66,9 +69,15 @@ class AgentServiceManager(private val context: Context) {
     /**
      * Starts the Agent as a foreground service
      */
+    @RequiresApi(Build.VERSION_CODES.Q)
     fun startAgentForeground(agent: Agent) {
-        val notification = createNotification("Processing commands")
-        agent.startForeground(NOTIFICATION_ID, notification)
+        val notification = createNotification("Processing commands and screenshots")
+        agent.startForeground(
+            NOTIFICATION_ID,
+            notification,
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC // Add others if needed
+        )
     }
 
     /**
