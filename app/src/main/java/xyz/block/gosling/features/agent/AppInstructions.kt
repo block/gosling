@@ -78,6 +78,8 @@ object AppInstructions {
                 If asked, look for specific detailed in descriptions or reviews after clicking in and scrolling
                 Consider if the query mentions a specific brand, in which case, ensure items you are reviewing match that specific brand 
                 Add items to cart if asked
+                Always ignore sponsored items, only view non sponsored
+                Always scroll several items, swiping down the screen. Never stop at first screen.
 
                 URL Schemes:
                 - Use 'amzn://' to open the main app

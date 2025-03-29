@@ -528,6 +528,78 @@ object ToolHandler {
             "Failed to swipe from ($startX, $startY) to ($endX, $endY)"
         }
     }
+    
+    @Tool(
+        name = "scrollBrowse",
+        description = "Scroll up a screen's worth from the current position and return the UI hierarchy at that new position. " +
+                "Use this to navigate through content while examining the UI one screen at a time.",
+        parameters = [
+            ParameterDef(
+                name = "scroll_duration",
+                type = "integer",
+                description = "Duration of the scroll in milliseconds (default is 300)",
+                required = false
+            ),
+            ParameterDef(
+                name = "pause_after_scroll",
+                type = "integer",
+                description = "Time to pause after scrolling in milliseconds (default is 1000)",
+                required = false
+            )
+        ],
+        requiresAccessibility = true
+    )
+    fun scrollBrowse(accessibilityService: AccessibilityService, args: JSONObject): String {
+        val scrollDuration = if (args.has("scroll_duration")) args.getInt("scroll_duration") else 300
+        val pauseAfterScroll = if (args.has("pause_after_scroll")) args.getInt("pause_after_scroll") else 1000
+        
+        // Get screen dimensions for calculating scroll coordinates
+        val displayMetrics = accessibilityService.resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        
+        // Center X coordinate
+        val centerX = screenWidth / 2
+        
+        // Calculate scroll coordinates (from bottom third to top third)
+        val startY = (screenHeight * 0.7).toInt()
+        val endY = (screenHeight * 0.3).toInt()
+        
+        // Perform swipe gesture
+        val swipePath = Path()
+        swipePath.moveTo(centerX.toFloat(), startY.toFloat())
+        swipePath.lineTo(centerX.toFloat(), endY.toFloat())
+        
+        val gestureBuilder = GestureDescription.Builder()
+        gestureBuilder.addStroke(
+            GestureDescription.StrokeDescription(
+                swipePath,
+                0,
+                scrollDuration.toLong()
+            )
+        )
+        
+        val swipeResult = performGesture(gestureBuilder.build(), accessibilityService)
+        
+        if (!swipeResult) {
+            return "Failed to scroll the screen"
+        }
+        
+        // Wait for content to settle
+        Thread.sleep(pauseAfterScroll.toLong())
+        
+        // Get UI hierarchy at this position
+        return try {
+            val activeWindow = accessibilityService.rootInActiveWindow
+                ?: return "ERROR: No active window found after scrolling"
+            
+            val appInfo = "App: ${activeWindow.packageName}"
+            val hierarchyText = buildCompactHierarchy(activeWindow)
+            "$appInfo $cordinateHint\n$hierarchyText"
+        } catch (e: Exception) {
+            "ERROR: Failed to get UI hierarchy after scrolling: ${e.message}"
+        }
+    }
 
     private fun findEditableNode(
         root: AccessibilityNodeInfo?,
