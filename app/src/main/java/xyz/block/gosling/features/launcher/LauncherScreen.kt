@@ -188,7 +188,7 @@ fun LauncherScreen() {
                 
                 // Display the last command result if available
                 lastCommandResult?.let { result ->
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(32.dp))  // Increased spacing
                     CommandResultCard(
                         commandResult = result,
                         onDismiss = { lastCommandResult = null },
@@ -196,7 +196,7 @@ fun LauncherScreen() {
                     )
                 }
 
-                Spacer(modifier = Modifier.weight(0.8f))
+                Spacer(modifier = Modifier.weight(0.6f))  // Reduced weight to give more space to the card
 
                 InputOptions(
                     onMicrophoneClick = {
@@ -268,7 +268,7 @@ fun CommandResultCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (commandResult.isError)
                 MaterialTheme.colorScheme.errorContainer
@@ -279,7 +279,7 @@ fun CommandResultCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(20.dp)  // Increased padding for more vertical space
         ) {
             // Command (question)
             Text(
@@ -291,14 +291,14 @@ fun CommandResultCard(
                     MaterialTheme.colorScheme.onSecondaryContainer
             )
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))  // Increased spacing
             
             // Response (answer) - with scrolling for long content
             val scrollState = rememberScrollState()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 200.dp) // Limit height and enable scrolling for long answers
+                    .heightIn(min = 150.dp, max = 350.dp)  // Increased min and max height
                     .verticalScroll(scrollState)
             ) {
                 Text(
@@ -311,7 +311,7 @@ fun CommandResultCard(
                 )
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))  // Increased spacing
             
             Text(
                 text = "Tap to dismiss",

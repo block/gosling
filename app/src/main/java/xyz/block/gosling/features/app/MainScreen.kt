@@ -333,11 +333,7 @@ fun MainScreen(
                         onValueChange = { textInput = it },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { 
-                            if (currentConversation != null) {
-                                Text("Continue conversation ...")
-                            } else {
-                                Text("What can gosling do for you?") 
-                            }
+                            Text("What can gosling do for you?")
                         },
                         colors = TextFieldDefaults.colors(
                             unfocusedContainerColor = Color.Transparent,
@@ -524,7 +520,7 @@ fun MainScreen(
                                 )
                             }
                             Text(
-                                text = if (showAllConversations) "Hide Conversations" else "Show past Conversations",
+                                text = if (showAllConversations) "Hide Past Conversations" else "View Past Conversations",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -586,9 +582,7 @@ fun MainScreen(
         val agent = activity.currentAgent
         if (agent != null) {
             CoroutineScope(Dispatchers.Main).launch {
-                agent.conversationManager.conversations.collect { updatedConversations ->
-                    conversations = updatedConversations
-                }
+                conversations = agent.conversationManager.recentConversations()
             }
         }
     }
@@ -598,9 +592,7 @@ fun MainScreen(
         val agent = activity.currentAgent
         if (agent != null) {
             CoroutineScope(Dispatchers.Main).launch {
-                agent.conversationManager.conversations.collect { updatedConversations ->
-                    conversations = updatedConversations
-                }
+                conversations = agent.conversationManager.recentConversations()
             }
             
             CoroutineScope(Dispatchers.Main).launch {

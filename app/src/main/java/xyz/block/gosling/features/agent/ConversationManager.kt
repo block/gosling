@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -30,6 +31,15 @@ class ConversationManager(context: Context) {
 
     init {
         loadConversations()
+    }
+
+    fun recentConversations(): List<Conversation> {
+        val currentTimeMillis = System.currentTimeMillis()
+        val latest = currentTimeMillis - (1000 * 60 * 60) // 1 hour
+
+        return _conversations.value
+            .filter { it.startTime >= latest }
+            .sortedByDescending { it.startTime }
     }
 
 

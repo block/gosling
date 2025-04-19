@@ -185,8 +185,11 @@ class Agent : Service() {
         context: Context,
         triggerType: TriggerType,
         imageUri: Uri? = null,
-        continueSession: Boolean = false,
     ): String {
+
+        // TODO: decide if we want long running sessions or not.
+        // possibly not as we can just have it look at past converstations when needed.
+        val continueSession = false;
 
         try {
             isCancelled = false
@@ -614,8 +617,7 @@ class Agent : Service() {
                 processCommand(
                     prompt,
                     this@Agent,
-                    triggerType = TriggerType.NOTIFICATION,
-                    continueSession = false,
+                    triggerType = TriggerType.NOTIFICATION
                 )
             } catch (e: Exception) {
                 Log.e(tag, "Error handling notification", e)

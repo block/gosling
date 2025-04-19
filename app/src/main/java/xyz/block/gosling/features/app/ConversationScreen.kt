@@ -115,10 +115,8 @@ fun ConversationScreen(
             scope.launch(Dispatchers.Main) {
                 boundAgent.conversationManager.conversations.collect { conversations ->
                     conversation = conversations.find { it.id == conversationId }
-                    // Set this as the current conversation
-                    conversation?.let {
-                        boundAgent.conversationManager.setCurrentConversation(conversationId)
-                    }
+                    // We don't set this as the current conversation anymore
+                    // Just display the conversation details
                 }
             }
         }
@@ -166,8 +164,8 @@ fun ConversationScreen(
                 title = {
                     Text(
                         text = conversation?.let { conv ->
-                            getConversationTitle(conv)
-                        } ?: "Loading...",
+                            "History: ${getConversationTitle(conv)}"
+                        } ?: "Loading history...",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

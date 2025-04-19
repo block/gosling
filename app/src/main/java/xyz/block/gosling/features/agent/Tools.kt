@@ -23,6 +23,10 @@ import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import xyz.block.gosling.features.agent.Agent
+import xyz.block.gosling.features.agent.Content
+import xyz.block.gosling.features.agent.Message
+import xyz.block.gosling.features.agent.Conversation
 
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.RUNTIME)
@@ -1227,18 +1231,32 @@ object ToolHandler {
 
     @Tool(
         name = "searchPastConversations",
-        description = "If you need to, search through past conversations for a specific query. Returns relevant messages from matching conversations.",
+        description = "Search through past conversations to retrieve conversation history. When query is provided, searches for specific text. When query is omitted, returns recent conversation history, only use if getLastConversationContext didn't help.",
         parameters = [
             ParameterDef(
                 name = "query",
                 type = "string",
-                description = "The search term to look for in past conversations"
+                description = "Optional search term to look for in past conversations. If omitted, returns recent conversation history without searching.",
+                required = false
             ),
+            ParameterDef(
+                name = "max_conversations",
+                type = "integer",
+                description = "Maximum number of conversations to retrieve or search through (default: 4)",
+                required = false
+            ),
+            ParameterDef(
+                name = "max_messages_per_conversation",
+                type = "integer",
+                description = "Maximum number of messages to retrieve per conversation (default: 5)",
+                required = false
+            )
         ],
         requiresContext = true
     )
     fun searchPastConversations(context: Context, args: JSONObject): String {
-        val query = args.getString("query").lowercase()
+        val hasQuery = args.has("query")
+        val query = if (hasQuery) args.getString("query").lowercase() else ""
         val maxConversations = args.optInt("max_conversations", 4)
         val maxMessagesPerConversation = args.optInt("max_messages_per_conversation", 5)
         
@@ -1250,30 +1268,46 @@ object ToolHandler {
             return "No past conversations found."
         }
         
-        // Search for conversations containing the query
-        val matchingConversations = allConversations
-            .filter { conversation ->
-                conversation.messages.any { message ->
-                    // Only search in user and assistant messages
-                    (message.role == "user" || message.role == "assistant") &&
-                    message.content?.filterIsInstance<Content.Text>()?.any { 
-                        it.text.lowercase().contains(query) 
-                    } == true
+        // Get conversations - either search by query or just get recent ones
+        val selectedConversations = if (hasQuery) {
+            // Search for conversations containing the query
+            allConversations
+                .filter { conversation ->
+                    conversation.messages.any { message ->
+                        // Only search in user and assistant messages
+                        (message.role == "user" || message.role == "assistant") &&
+                        message.content?.filterIsInstance<Content.Text>()?.any { 
+                            it.text.lowercase().contains(query) 
+                        } == true
+                    }
                 }
-            }
-            .take(maxConversations)
+                .take(maxConversations)
+        } else {
+            // Just get the most recent conversations
+            allConversations
+                .sortedByDescending { it.startTime }
+                .take(maxConversations)
+        }
         
-        if (matchingConversations.isEmpty()) {
-            return "No conversations found matching query: \"$query\""
+        if (selectedConversations.isEmpty()) {
+            return if (hasQuery) {
+                "No conversations found matching query: \"$query\""
+            } else {
+                "No conversations found. Consider using no query or a different query or looking further."
+            }
         }
         
         val resultBuilder = StringBuilder()
-        resultBuilder.append("Found ${matchingConversations.size} conversations matching \"$query\":\n\n")
+        if (hasQuery) {
+            resultBuilder.append("Found ${selectedConversations.size} conversations matching \"$query\":\n\n")
+        } else {
+            resultBuilder.append("Retrieved ${selectedConversations.size} most recent conversations:\n\n")
+        }
         
-        // Process each matching conversation
-        matchingConversations.forEachIndexed { index, conversation ->
+        // Process each selected conversation
+        selectedConversations.forEachIndexed { index, conversation ->
             // Get conversation title
-            val title = getConversationTitle(conversation)
+            val title = xyz.block.gosling.features.agent.getConversationTitle(conversation)
             val formattedDate = java.text.SimpleDateFormat(
                 "MMM d, yyyy 'at' h:mm a", 
                 java.util.Locale.getDefault()
@@ -1297,10 +1331,10 @@ object ToolHandler {
             // Format and add messages
             relevantMessages.forEach { message ->
                 val role = if (message.role == "user") "User" else "Assistant"
-                val messageText = firstText(message)
+                val messageText = xyz.block.gosling.features.agent.firstText(message)
                 
-                // Highlight query matches in the text
-                val highlightedText = if (messageText.lowercase().contains(query)) {
+                // Highlight query matches in the text if we're searching
+                val highlightedText = if (hasQuery && messageText.lowercase().contains(query)) {
                     val startIndex = messageText.lowercase().indexOf(query)
                     val endIndex = startIndex + query.length
                     val before = messageText.substring(0, startIndex)
@@ -1321,8 +1355,73 @@ object ToolHandler {
     }
 
     @Tool(
+        name = "getLastConversationContext",
+        description = "Use this if the user is asking something which implies past context or continuing on, this will retrieve the last user message and assistant reply from the previous conversation for context. Useful when continuing a conversation, and you may often want to use it to be sure.",
+        parameters = [],
+        requiresContext = true
+    )
+    fun getLastConversationContext(context: Context, args: JSONObject): String {
+        val agent = Agent.getInstance() ?: return "Error: Agent not available"
+        val conversationManager = agent.conversationManager
+        val allConversations = conversationManager.conversations.value
+        
+        if (allConversations.isEmpty()) {
+            return "No previous conversations found."
+        }
+        
+        // Get the most recent conversation (excluding current one if possible)
+        val sortedConversations = allConversations.sortedByDescending { it.startTime }
+        val lastConversation = if (sortedConversations.size > 1) {
+            // If there's more than one conversation, get the second most recent
+            // (assuming the first is the current one)
+            sortedConversations[1]
+        } else {
+            // Otherwise just get the most recent one
+            sortedConversations[0]
+        }
+        
+        // Get conversation details
+        val title = xyz.block.gosling.features.agent.getConversationTitle(lastConversation)
+        val formattedDate = java.text.SimpleDateFormat(
+            "MMM d, yyyy 'at' h:mm a", 
+            java.util.Locale.getDefault()
+        ).format(java.util.Date(lastConversation.startTime))
+        
+        // Find the last user and assistant messages
+        val userMessages = lastConversation.messages.filter { it.role == "user" }
+        val assistantMessages = lastConversation.messages.filter { it.role == "assistant" }
+        
+        if (userMessages.isEmpty() && assistantMessages.isEmpty()) {
+            return "Previous conversation found ($title, $formattedDate) but it contains no user or assistant messages."
+        }
+        
+        val resultBuilder = StringBuilder()
+        resultBuilder.append("Context from previous conversation ($title, $formattedDate):\n\n")
+        
+        // Get the last user message if available
+        val lastUserMessage = userMessages.lastOrNull()
+        if (lastUserMessage != null) {
+            val userText = xyz.block.gosling.features.agent.firstText(lastUserMessage)
+            resultBuilder.append("Last user message: $userText\n\n")
+        } else {
+            resultBuilder.append("No user message in the previous conversation.\n\n")
+        }
+        
+        // Get the last assistant message if available
+        val lastAssistantMessage = assistantMessages.lastOrNull()
+        if (lastAssistantMessage != null) {
+            val assistantText = xyz.block.gosling.features.agent.firstText(lastAssistantMessage)
+            resultBuilder.append("Last assistant response: $assistantText")
+        } else {
+            resultBuilder.append("No assistant response in the previous conversation.")
+        }
+        
+        return resultBuilder.toString().trim() + "\n Also consider using searchPastConversations if more context needed."
+    }
+
+    @Tool(
         name = "notificationHandler",
-        description = "Configure automatic notification handling. Enable or disable notification processing and set rules for how notifications should be handled.",
+        description = "Use this when user wants to configure automatic notification/message handling to take actions when events happen. Enable or disable notification processing and set rules for how notifications (such as messages, calendar events, app notifications) should be handled.",
         parameters = [
             ParameterDef(
                 name = "enable",
@@ -1332,7 +1431,7 @@ object ToolHandler {
             ParameterDef(
                 name = "rules",
                 type = "string",
-                description = "Rules for handling notifications. These are instructions for how to process different types of notifications.",
+                description = "Rules for handling notifications. These are instructions for how to process different types of notifications/events as they come in.",
                 required = false
             ),
             ParameterDef(
